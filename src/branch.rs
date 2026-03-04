@@ -154,8 +154,7 @@ pub fn get_branches(
 
     let mut branches = Branches::new();
     let mut branches_total_count = 0;
-    let mut vaddr_iter = vaddrs.iter().enumerate();
-    while let Some((i, vaddr)) = vaddr_iter.next() {
+    for (i, vaddr) in vaddrs.iter().enumerate() {
         let mut _indent = 0;
         let frames = dwarf.loader.find_frames(*vaddr);
         if let Ok(frames) = frames {
@@ -184,7 +183,9 @@ pub fn get_branches(
                 let ins = insns[i].to_le_bytes();
                 let ins_opcode = ins[0];
                 if ins_opcode == ebpf::LD_DW_IMM {
-                    vaddr_iter.next(); // 16 bytes instruction, hence consume 1 vaddr
+                    // lddw spans two slots, but we iterate over
+                    // recorded PCs — the VM already skipped the
+                    // second slot at execution time.
                     continue;
                 }
 
