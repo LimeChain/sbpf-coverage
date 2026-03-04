@@ -189,13 +189,13 @@ pub fn get_branches(
                     continue;
                 }
 
-                let ins_offset = ins[2] as u64 | ((ins[3] as u64) << 8);
+                let ins_offset = i16::from_le_bytes([ins[2], ins[3]]) as i64;
                 if (ins_opcode & 7) == ebpf::BPF_JMP32 || (ins_opcode & 7) == ebpf::BPF_JMP64 {
                     let _next_pc = vaddr + 8;
                     if debug_enabled() {
                         eprintln!("very next instruction is: {:x}", _next_pc);
                     }
-                    let goto_pc = vaddr + ins_offset * 8 + 8;
+                    let goto_pc = ((*vaddr as i64) + ins_offset * 8 + 8) as u64;
 
                     // get next_pc from the next batch of registers corresponding to the next vaddr.
                     if debug_enabled() {
@@ -222,7 +222,6 @@ pub fn get_branches(
 
                     if ins_opcode == ebpf::BPF_JMP32
                         || ins_opcode == ebpf::BPF_JMP64
-                        || ins_opcode == ebpf::BPF_JA
                         || ins_opcode == ebpf::CALL_REG
                         || ins_opcode == ebpf::CALL_IMM
                         || ins_opcode == ebpf::EXIT
@@ -232,14 +231,13 @@ pub fn get_branches(
                     }
 
                     // There's a branch at this vaddr.
-                    let branch = branches.entry(Vaddr::from(*vaddr)).or_insert({
+                    let branch = branches.entry(Vaddr::from(*vaddr)).or_insert_with(|| {
                         branches_total_count += 1;
-                        let branch_id = branches_total_count;
                         Branch::new(
                             outer_frame_details.file_name, /* TODO: if these are None? Update
                                                             * them later? */
                             outer_frame_details.line_num,
-                            branch_id,
+                            branches_total_count,
                         )
                     });
                     if next_pc == goto_pc {
@@ -307,9 +305,9 @@ pub fn write_branch_coverage(
                     file,
                     line,
                     if branch.next_taken == 0 {
-                        LcovBranch::GotoNotTaken
-                    } else {
                         LcovBranch::NextNotTaken
+                    } else {
+                        LcovBranch::GotoNotTaken
                     },
                     branch.branch_id,
                 )?;
