@@ -9,7 +9,14 @@ fn main() -> Result<()> {
     let src_paths: HashSet<_> = options.src_path.into_iter().collect();
     let sbf_paths = options.sbf_path;
 
-    sbpf_coverage::run(sbf_trace_dir, src_paths, sbf_paths, options.debug)?;
+    sbpf_coverage::run(
+        sbf_trace_dir,
+        src_paths,
+        sbf_paths,
+        options.debug,
+        options.trace_disassemble,
+        options.no_color,
+    )?;
 
     Ok(())
 }
@@ -33,4 +40,16 @@ struct Args {
     /// Path to the register tracing dumps, please use full path
     #[arg(long, required = true)]
     sbf_trace_dir: PathBuf,
+
+    /// Provides mapping between PC and source code.
+    /// If the register tracing dump was collected with `SBF_TRACE_DISASSEMBLE` set
+    /// (i.e `.trace` files are present for each trace in `SBF_TRACE_DIR`) then
+    /// the output of the disassembly is included in the print giving
+    /// a full picture between execution, native source code and SBPF instructions.
+    #[arg(long)]
+    trace_disassemble: bool,
+
+    /// Disable colored output for trace disassembly as some terminals may not support it.
+    #[arg(long, default_value_t = false)]
+    no_color: bool,
 }
