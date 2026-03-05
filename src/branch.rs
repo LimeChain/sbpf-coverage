@@ -189,6 +189,7 @@ pub fn get_branches(
                     continue;
                 }
 
+                // eBPF branch offsets are signed 16-bit (backward jumps are negative).
                 let ins_offset = i16::from_le_bytes([ins[2], ins[3]]) as i64;
                 if (ins_opcode & 7) == ebpf::BPF_JMP32 || (ins_opcode & 7) == ebpf::BPF_JMP64 {
                     let _next_pc = vaddr + 8;
