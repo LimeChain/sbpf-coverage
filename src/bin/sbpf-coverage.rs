@@ -40,7 +40,11 @@ struct Args {
     #[arg(long, required = true)]
     sbf_trace_dir: PathBuf,
 
-    /// Mapping between PC and source code
-    #[arg(long, long)]
+    /// Provides mapping between PC and source code.
+    /// If the register tracing dump was collected with `SBF_TRACE_DISASSEMBLE` set
+    /// (i.e `.trace` files are present for each trace in `SBF_TRACE_DIR`) then
+    /// the output of the disassembly is included in the print giving
+    /// a full picture between execution, native source code and SBPF instructions.
+    #[arg(long)]
     trace_disassemble: bool,
 }
