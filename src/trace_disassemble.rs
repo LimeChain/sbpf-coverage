@@ -7,7 +7,12 @@ use anyhow::Result;
 
 /// Prints each traced PC alongside its disassembly (from the `.trace` file)
 /// and, when DWARF info is available, the corresponding source location and code.
-pub fn trace_disassemble(regs_path: &Path, vaddrs: &[u64], dwarf: &Dwarf) -> Result<Outcome> {
+pub fn trace_disassemble(
+    regs_path: &Path,
+    vaddrs: &[u64],
+    dwarf: &Dwarf,
+    colorize: bool,
+) -> Result<Outcome> {
     // As we read files too often introduce a cache.
     let mut file_cache = HashMap::new();
     // Take advantage of the `SBF_TRACE_DISASSEMBLE` generated trace
@@ -37,12 +42,21 @@ pub fn trace_disassemble(regs_path: &Path, vaddrs: &[u64], dwarf: &Dwarf) -> Res
                     std::fs::read_to_string(entry.file).unwrap_or("".to_string())
                 });
                 let code = read_nth_line(content, entry.line.saturating_sub(1) as usize);
-                eprintln!(
-                    "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  src: {}:{}\n  code: {}",
-                    entry.file,
-                    entry.line,
-                    code.trim(),
-                );
+                if colorize {
+                    eprintln!(
+                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  \x1b[33msrc:\x1b[0m \x1b[34m{}:{}\x1b[0m\n  \x1b[36mcode:\x1b[0m \x1b[32m{}\x1b[0m",
+                        entry.file,
+                        entry.line,
+                        code.trim(),
+                    );
+                } else {
+                    eprintln!(
+                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  src: {}:{}\n  code: {}",
+                        entry.file,
+                        entry.line,
+                        code.trim(),
+                    );
+                }
             }
         };
     }

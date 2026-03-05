@@ -15,6 +15,7 @@ fn main() -> Result<()> {
         sbf_paths,
         options.debug,
         options.trace_disassemble,
+        options.no_color,
     )?;
 
     Ok(())
@@ -47,4 +48,8 @@ struct Args {
     /// a full picture between execution, native source code and SBPF instructions.
     #[arg(long)]
     trace_disassemble: bool,
+
+    /// Disable colored output for trace disassembly as some terminals may not support it.
+    #[arg(long, default_value_t = false)]
+    no_color: bool,
 }

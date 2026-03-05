@@ -58,6 +58,7 @@ pub fn run(
     sbf_paths: Vec<PathBuf>,
     debug: bool,
     trace_disassemble: bool,
+    no_color: bool,
 ) -> Result<()> {
     let mut lcov_paths = Vec::new();
 
@@ -91,7 +92,7 @@ Are you sure you run your tests with register tracing enabled",
     }
 
     for regs_path in &regs_paths {
-        match process_regs_path(&dwarfs, regs_path, &src_paths, trace_disassemble) {
+        match process_regs_path(&dwarfs, regs_path, &src_paths, trace_disassemble, no_color) {
             Ok(Outcome::Lcov(lcov_path)) => {
                 lcov_paths.push(lcov_path.strip_current_dir().to_path_buf());
             }
@@ -216,6 +217,7 @@ fn process_regs_path(
     regs_path: &Path,
     src_paths: &HashSet<PathBuf>,
     trace_disassemble: bool,
+    no_color: bool,
 ) -> Result<Outcome> {
     eprintln!();
     let exec_sha256 = std::fs::read_to_string(regs_path.with_extension("exec.sha256"))?;
@@ -243,7 +245,7 @@ fn process_regs_path(
     );
 
     if trace_disassemble {
-        return trace_disassemble::trace_disassemble(regs_path, &vaddrs, dwarf);
+        return trace_disassemble::trace_disassemble(regs_path, &vaddrs, dwarf, !no_color);
     }
 
     // smoelius: If a sequence of Regs refer to the same file and line, treat them as
