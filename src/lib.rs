@@ -10,6 +10,7 @@ use std::{
 };
 
 mod branch;
+mod trace_disassemble;
 
 mod start_address;
 use start_address::start_address;
@@ -40,6 +41,7 @@ struct Dwarf {
 
 enum Outcome {
     Lcov(PathBuf),
+    TraceDisassemble,
 }
 
 type Vaddrs = Vec<u64>;
@@ -55,6 +57,7 @@ pub fn run(
     src_paths: HashSet<PathBuf>,
     sbf_paths: Vec<PathBuf>,
     debug: bool,
+    trace_disassemble: bool,
 ) -> Result<()> {
     let mut lcov_paths = Vec::new();
 
@@ -62,7 +65,7 @@ pub fn run(
 
     let dwarfs = debug_paths
         .into_iter()
-        .map(|path| build_dwarf(&path, &src_paths))
+        .map(|path| build_dwarf(&path, &src_paths, trace_disassemble))
         .collect::<Result<Vec<_>>>()
         .expect("Can't build dwarf");
 
@@ -88,9 +91,12 @@ Are you sure you run your tests with register tracing enabled",
     }
 
     for regs_path in &regs_paths {
-        match process_regs_path(&dwarfs, regs_path, &src_paths) {
+        match process_regs_path(&dwarfs, regs_path, &src_paths, trace_disassemble) {
             Ok(Outcome::Lcov(lcov_path)) => {
                 lcov_paths.push(lcov_path.strip_current_dir().to_path_buf());
+            }
+            Ok(Outcome::TraceDisassemble) => {
+                return Ok(());
             }
             _ => {
                 eprintln!(
@@ -149,7 +155,11 @@ fn debug_paths(sbf_paths: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
     Ok(full_list)
 }
 
-fn build_dwarf(debug_path: &Path, src_paths: &HashSet<PathBuf>) -> Result<Dwarf> {
+fn build_dwarf(
+    debug_path: &Path,
+    src_paths: &HashSet<PathBuf>,
+    trace_disassemble: bool,
+) -> Result<Dwarf> {
     let start_address = start_address(debug_path)?;
 
     let loader = Loader::new(debug_path).map_err(|error| {
@@ -167,7 +177,7 @@ fn build_dwarf(debug_path: &Path, src_paths: &HashSet<PathBuf>) -> Result<Dwarf>
         debug_path.strip_current_dir().display()
     );
 
-    let vaddr_entry_map = build_vaddr_entry_map(loader, debug_path, src_paths)?;
+    let vaddr_entry_map = build_vaddr_entry_map(loader, debug_path, src_paths, trace_disassemble)?;
 
     // Suppose debug_path is program.debug, swap with .so and try
     let mut so_path = debug_path.with_extension("so");
@@ -205,6 +215,7 @@ fn process_regs_path(
     dwarfs: &[Dwarf],
     regs_path: &Path,
     src_paths: &HashSet<PathBuf>,
+    trace_disassemble: bool,
 ) -> Result<Outcome> {
     eprintln!();
     let exec_sha256 = std::fs::read_to_string(regs_path.with_extension("exec.sha256"))?;
@@ -230,6 +241,10 @@ fn process_regs_path(
             .first()
             .is_some_and(|&vaddr| vaddr == dwarf.start_address)
     );
+
+    if trace_disassemble {
+        return trace_disassemble::trace_disassemble(regs_path, &vaddrs, dwarf);
+    }
 
     // smoelius: If a sequence of Regs refer to the same file and line, treat them as
     // one hit to that file and line.
@@ -257,6 +272,7 @@ fn build_vaddr_entry_map<'a>(
     loader: &'a Loader,
     debug_path: &Path,
     src_paths: &HashSet<PathBuf>,
+    trace_disassemble: bool,
 ) -> Result<VaddrEntryMap<'a>> {
     let mut vaddr_entry_map = VaddrEntryMap::new();
     let metadata = metadata(debug_path)?;
@@ -270,24 +286,26 @@ fn build_vaddr_entry_map<'a>(
         let Some(file) = location.file else {
             continue;
         };
-        // smoelius: Ignore files that do not exist.
-        if !Path::new(file).try_exists()? {
-            continue;
-        }
-        // procdump: ignore files other than what user has provided.
-        if !src_paths
-            .iter()
-            .any(|src_path| file.starts_with(&src_path.to_string_lossy().to_string()))
-        {
-            continue;
+        if !trace_disassemble {
+            // smoelius: Ignore files that do not exist.
+            if !Path::new(file).try_exists()? {
+                continue;
+            }
+            // procdump: ignore files other than what user has provided.
+            if !src_paths
+                .iter()
+                .any(|src_path| file.starts_with(&src_path.to_string_lossy().to_string()))
+            {
+                continue;
+            }
         }
         let Some(line) = location.line else {
             continue;
         };
         // smoelius: Even though we ignore columns, fetch them should we ever want to act on them.
-        let Some(_column) = location.column else {
-            continue;
-        };
+        // let Some(_column) = location.column else {
+        //     continue;
+        // };
         let entry = vaddr_entry_map.entry(vaddr).or_default();
         entry.file = file;
         entry.line = line;

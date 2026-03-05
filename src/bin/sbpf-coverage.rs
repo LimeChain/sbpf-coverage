@@ -9,7 +9,13 @@ fn main() -> Result<()> {
     let src_paths: HashSet<_> = options.src_path.into_iter().collect();
     let sbf_paths = options.sbf_path;
 
-    sbpf_coverage::run(sbf_trace_dir, src_paths, sbf_paths, options.debug)?;
+    sbpf_coverage::run(
+        sbf_trace_dir,
+        src_paths,
+        sbf_paths,
+        options.debug,
+        options.trace_disassemble,
+    )?;
 
     Ok(())
 }
@@ -33,4 +39,8 @@ struct Args {
     /// Path to the register tracing dumps, please use full path
     #[arg(long, required = true)]
     sbf_trace_dir: PathBuf,
+
+    /// Mapping between PC and source code
+    #[arg(long, long)]
+    trace_disassemble: bool,
 }
