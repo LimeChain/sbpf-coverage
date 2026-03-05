@@ -1,6 +1,6 @@
 # sbpf-coverage
 
-A tool for computing test code coverage of Solana programs.
+A tool for computing test code coverage of Solana programs and providing trace disassembly mapping between SBPF instructions and source code.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ sudo apt install lcov
 sudo dnf install lcov
 ```
 
-## Steps to use
+## Steps to use for code coverage
 
 1. Add the following to `[profile.release]` section of your Solana program's Cargo.toml:
 
@@ -70,6 +70,50 @@ sudo dnf install lcov
    genhtml --output-directory coverage sbf_trace_dir/*.lcov --rc branch_coverage=1 && open coverage/index.html
    ```
 
+## Trace disassembly usage
+
+In addition to generating coverage data, `sbpf-coverage` can also provide a mapping between
+program counters, SBPF disassembly, and your native source code. This is useful for understanding
+exactly which instructions correspond to which lines of your program.
+
+The executable must include debug symbols (best in a separate file `.so.debug`). For best results, build with optimizations enabled
+and ensure debug information is preserved. Use `-Copt-level=2` or `-Copt-level=3` depending on
+the optimization level you want to inspect:
+
+```sh
+RUSTFLAGS="-C strip=none -C debuginfo=2 -Copt-level=2" cargo-build-sbf --tools-version v1.53 --debug
+```
+
+> **Note:** Currently `--debug` tells `cargo-build-sbf` to build *without* `--release`, which
+> means no optimizations. The `RUSTFLAGS` above override this by forcing the desired opt-level.
+> For a fully production-like build, you would also want LTO (`lto = "thin"` or `lto = "fat"`)
+> and `codegen-units = 1`, but these are only applied in `--release` mode.
+> Ideally, `cargo-build-sbf` would support a mode that builds with `--release` (optimizations
+> enabled) while preserving the debug sections — this would produce the most accurate
+> disassembly mapping against production-like code. This is the case with Blueshift's
+> [sbpf-linker](https://github.com/blueshift-gg/sbpf-linker/pull/19) which can preserve debug
+> sections in optimized release builds.
+
+To use this feature, first collect the register tracing data with `SBF_TRACE_DISASSEMBLE` set:
+
+```sh
+SBF_TRACE_DISASSEMBLE=1 SBF_TRACE_DIR=$PWD/sbf_trace_dir cargo test -- --nocapture
+```
+
+This will generate `.trace` files alongside the register dumps in `sbf_trace_dir`. Then run:
+
+```sh
+sbpf-coverage \
+   --src-path=$PWD/programs/myapp/src/ \
+   --sbf-path=$PWD/target/deploy \
+   --sbf-trace-dir=$PWD/sbf_trace_dir \
+   --trace-disassemble
+```
+
+The output shows each executed instruction alongside its disassembly, source file location, and
+the corresponding line of source code. To disable colored output (e.g. when piping to a file),
+pass `--no-color`.
+
 ## Known problems
 
 `sbpf-coverage` uses Dwarf debug information, not LLVM instrumentation-based coverage, to map instructions to source code locations. This can have confusing implications. For example:
@@ -90,7 +134,7 @@ The following is an example. The line with the assignment to `signer` is hit onl
             1 :     }
 ```
 
-## Troubleshooting
+## Troubleshooting related to code coverage (unrelated to trace disassembly)
 
 - If you see:
   ```
