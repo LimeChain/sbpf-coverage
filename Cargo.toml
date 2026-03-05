@@ -14,10 +14,10 @@ categories = ["development-tools::testing"]
 [dependencies]
 addr2line = "0.26"
 object = "0.38"
-anyhow = "1.0"
-byteorder = "1.5"
+anyhow = "=1.0.100"
+byteorder = "=1.5.0"
 # BPF_ consts
 solana-sbpf = "0.14.4"
-sha2 = "0.10"
-hex = "0.4"
-clap = { version = "4.5", features = ["derive"] }
+sha2 = "=0.10.9"
+hex = "=0.4.3"
+clap = { version = "=4.5.54", features = ["derive"] }
