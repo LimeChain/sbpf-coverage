@@ -18,7 +18,7 @@ use start_address::start_address;
 pub mod util;
 use util::StripCurrentDir;
 
-use crate::util::{compute_hash, find_files_with_extension};
+use crate::util::{compute_hash, find_files_with_extension, get_section_start_address};
 
 mod vaddr;
 
@@ -34,6 +34,7 @@ struct Dwarf {
     so_path: PathBuf,
     so_hash: String,
     start_address: u64,
+    text_section_offset: u64,
     #[allow(dead_code, reason = "`vaddr` points into `loader`")]
     loader: &'static Loader,
     vaddr_entry_map: BTreeMap<u64, Entry<'static>>,
@@ -209,6 +210,7 @@ fn build_dwarf(
         start_address,
         loader,
         vaddr_entry_map,
+        text_section_offset: get_section_start_address(loader, ".text")?,
     })
 }
 
