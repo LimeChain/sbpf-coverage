@@ -245,7 +245,9 @@ fn process_regs_path(
     );
 
     if trace_disassemble {
-        return trace_disassemble::trace_disassemble(regs_path, &vaddrs, dwarf, !no_color);
+        return trace_disassemble::trace_disassemble(
+            src_paths, regs_path, &vaddrs, dwarf, !no_color,
+        );
     }
 
     // smoelius: If a sequence of Regs refer to the same file and line, treat them as
