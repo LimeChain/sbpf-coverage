@@ -3,6 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use addr2line::Loader;
+use anyhow::anyhow;
 use sha2::{Digest, Sha256};
 
 pub trait StripCurrentDir {
@@ -39,4 +41,11 @@ pub fn find_files_with_extension(dirs: &[PathBuf], extension: &str) -> Vec<PathB
 
 pub fn compute_hash(slice: &[u8]) -> String {
     hex::encode(Sha256::digest(slice).as_slice())
+}
+
+pub fn get_section_start_address(loader: &Loader, section: &str) -> anyhow::Result<u64> {
+    Ok(loader
+        .get_section_range(section.as_bytes())
+        .ok_or(anyhow!("Can't get .text section begin address"))?
+        .begin)
 }

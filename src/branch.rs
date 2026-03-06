@@ -3,7 +3,7 @@ use addr2line::{
     fallible_iterator::FallibleIterator,
     gimli::{self, ReaderOffset},
 };
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use solana_sbpf::ebpf;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -146,12 +146,7 @@ pub fn get_branches(
     regs: &Regs,
     dwarf: &Dwarf,
 ) -> Result<Branches, anyhow::Error> {
-    let text_section_offset = dwarf
-        .loader
-        .get_section_range(b".text")
-        .ok_or(anyhow!("Can't get .text section begin address"))?
-        .begin;
-
+    let text_section_offset = dwarf.text_section_offset;
     let mut branches = Branches::new();
     let mut branches_total_count = 0;
     for (i, vaddr) in vaddrs.iter().enumerate() {

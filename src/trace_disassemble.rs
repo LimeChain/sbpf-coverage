@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use crate::anyhow;
 use crate::{Dwarf, Outcome};
 use anyhow::Result;
 
@@ -84,12 +83,6 @@ pub fn read_nth_line(file_content: &str, line_number: usize) -> String {
 /// I believe it's a good idea to reconcile these two in some
 /// follow-ups.
 pub fn pc_in_disassemble(pc_in_trace: u64, dwarf: &Dwarf) -> Result<u64> {
-    let pc_in_disassembly = (pc_in_trace
-        - dwarf
-            .loader
-            .get_section_range(b".text")
-            .ok_or(anyhow!("Can't get .text section begin address"))?
-            .begin)
-        / 8;
+    let pc_in_disassembly = (pc_in_trace - dwarf.text_section_offset) / 8;
     Ok(pc_in_disassembly)
 }
