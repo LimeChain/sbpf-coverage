@@ -46,6 +46,6 @@ pub fn compute_hash(slice: &[u8]) -> String {
 pub fn get_section_start_address(loader: &Loader, section: &str) -> anyhow::Result<u64> {
     Ok(loader
         .get_section_range(section.as_bytes())
-        .ok_or(anyhow!("Can't get .text section begin address"))?
+        .ok_or(anyhow!("Can't get {} section begin address", section))?
         .begin)
 }
