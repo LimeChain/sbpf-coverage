@@ -1,14 +1,14 @@
 [package]
 name = "sbpf-coverage"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Boris Astardzhiev <boris.astardzhiev@gmail.com>", "Samuel Moelius <sam@moeli.us>"]
-description = "A tool for computing test coverage of Solana programs, maintained by LimeChain"
+description = "Maps SBPF execution traces to source code for test coverage and trace disassembly of Solana programs"
 edition = "2024"
 license = "AGPL-3.0"
 repository = "https://github.com/LimeChain/anchor-coverage-dwarf"
 homepage = "https://limechain.tech"
 readme = "README.md"
-keywords = ["solana", "coverage", "testing"]
+keywords = ["coverage", "disassembly", "register-tracing", "sbpf", "solana"]
 categories = ["development-tools::testing"]
 
 [dependencies]
