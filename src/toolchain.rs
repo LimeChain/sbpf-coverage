@@ -43,6 +43,7 @@ pub fn rustc_toolchain_from_producer(producer: &str) -> Option<String> {
     if !after.contains("-dev") {
         // Handle upstream eBPF here
         // "1.96.0-nightly (80381278a 2026-03-01))" -> "nightly-2026-03-01"
+        // TODO: Unfortunately the date may differ from the commit hash and be on the next day.
         let date = after
             .split('(')
             .nth(1)?
