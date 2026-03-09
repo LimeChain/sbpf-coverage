@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use crate::toolchain::get_toolchain_source_path;
 use crate::{Dwarf, Outcome};
 use anyhow::Result;
 
@@ -15,6 +16,10 @@ pub fn trace_disassemble(
 ) -> Result<Outcome> {
     // As we read files too often introduce a cache.
     let mut file_cache = HashMap::new();
+
+    // Get info about the toolchain used for this debug object
+    let toolchain_path = get_toolchain_source_path(&dwarf.debug_path);
+
     // Take advantage of the `SBF_TRACE_DISASSEMBLE` generated trace
     // that is dumped into `.trace` (if requested). We can't generate it here because
     // we need an Executable/Analysis/etc.. What we do here instead is the
@@ -38,26 +43,31 @@ pub fn trace_disassemble(
                 eprintln!("[{pc_in_disassemble}] (0x{pc:x}) {disassemble}");
             }
             Some((_, entry)) => {
-                let content = file_cache.entry(entry.file).or_insert_with(|| {
-                    std::fs::read_to_string(entry.file).unwrap_or("".to_string())
+                let (content, file_path) = file_cache.entry(entry.file).or_insert_with(|| {
+                    // If we can't find the file try to look it up in the toolchain sources.
+                    if let Ok(content) = std::fs::read_to_string(entry.file) {
+                        (content, entry.file.to_string())
+                    } else {
+                        todo!()
+                    }
                 });
                 let code = read_nth_line(content, entry.line.saturating_sub(1) as usize);
                 if colorize {
                     let is_user_src = src_paths
                         .iter()
-                        .any(|path| entry.file.contains(&path.to_string_lossy().to_string()));
+                        .any(|path| file_path.contains(&path.to_string_lossy().to_string()));
                     // Highlight user source files in purple, other files (e.g. dependencies) in blue.
                     let file_color = if is_user_src { "\x1b[35m" } else { "\x1b[34m" };
                     eprintln!(
                         "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  \x1b[33msrc:\x1b[0m {file_color}{}:{}\x1b[0m\n  \x1b[36mcode:\x1b[0m \x1b[32m{}\x1b[0m",
-                        entry.file,
+                        file_path,
                         entry.line,
                         code.trim(),
                     );
                 } else {
                     eprintln!(
                         "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  src: {}:{}\n  code: {}",
-                        entry.file,
+                        file_path,
                         entry.line,
                         code.trim(),
                     );
