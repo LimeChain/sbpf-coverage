@@ -9,10 +9,12 @@ pub fn get_toolchain_sysroot(debug_path: &DebugPath) -> Option<String> {
     if debug_path.lang == Some("DW_LANG_Rust".into())
         && let Some(producer) = debug_path.producer.as_ref()
     {
-        let toolchain = rustc_toolchain_from_producer(producer).or_else(|| {
-            eprintln!("Failed to extract toolchain from DW_AT_producer");
-            None
-        })?;
+        let toolchain = rustc_toolchain_from_producer(producer)
+            .or_else(|| {
+                eprintln!("Failed to extract toolchain from DW_AT_producer");
+                None
+            })
+            .inspect(|t| eprintln!("Toolchain detected: {}", t))?;
         let sysroot = execute_cmd(
             &PathBuf::from("rustc"),
             [&format!("+{toolchain}"), "--print", "sysroot"],
