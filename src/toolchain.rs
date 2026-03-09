@@ -85,9 +85,12 @@ pub fn get_platform_tools_version(binary_rustc_version: &str) -> Option<String> 
 
     let mut platform_tools_dirs = Vec::new();
     for path in paths {
-        let path = path.ok()?;
+        let Ok(path) = path else { continue };
         // Filter only directories
-        if !path.file_type().ok()?.is_dir() {
+        let Ok(file_type) = path.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
             continue;
         }
         let dir_name = path.file_name();
