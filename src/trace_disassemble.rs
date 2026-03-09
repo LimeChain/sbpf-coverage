@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use crate::toolchain::{cargo_home, get_toolchain_sysroot};
+use crate::toolchain::{cargo_home, get_toolchain_sysroot, map_dwarf_path};
+use crate::util::read_nth_line;
 use crate::{Dwarf, Outcome};
 use anyhow::Result;
 
@@ -96,15 +97,6 @@ pub fn trace_disassemble(
     Ok(Outcome::TraceDisassemble)
 }
 
-/// Returns the nth line from the given string, or empty if out of bounds.
-pub fn read_nth_line(file_content: &str, line_number: usize) -> String {
-    file_content
-        .lines()
-        .nth(line_number)
-        .unwrap_or("")
-        .to_string()
-}
-
 /// The pc we can observe in `.trace` doesn't take into account
 /// the start of the `.text` section start address as we do.
 /// I believe it's a good idea to reconcile these two in some
@@ -112,23 +104,4 @@ pub fn read_nth_line(file_content: &str, line_number: usize) -> String {
 pub fn pc_in_disassemble(pc_in_trace: u64, dwarf: &Dwarf) -> Result<u64> {
     let pc_in_disassembly = (pc_in_trace - dwarf.text_section_offset) / 8;
     Ok(pc_in_disassembly)
-}
-
-/// Maps a DWARF-recorded source path to a local filesystem path.
-/// DWARF paths from platform-tools builds use the CI runner's absolute paths (e.g. /home/runner/...).
-/// If a rust source root is available, paths containing `/library/` are remapped to the local toolchain sysroot.
-fn map_dwarf_path(dwarf_path: &str, rust_src_root: Option<&str>, cargo_root: &str) -> String {
-    if let (Some(rust_src_root), Some(pos)) = (rust_src_root, dwarf_path.find("/library/")) {
-        let suffix = &dwarf_path[pos..];
-        format!("{}/{}", rust_src_root, suffix)
-    } else if let Some(pos) = dwarf_path
-        .find(".cargo/registry/")
-        .or_else(|| dwarf_path.find(".cargo/git/"))
-    {
-        let suffix = &dwarf_path[pos + ".cargo/".len()..];
-        format!("{}/{}", cargo_root, suffix)
-    } else {
-        // fallback: path as-is
-        dwarf_path.to_string()
-    }
 }

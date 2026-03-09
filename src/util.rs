@@ -131,3 +131,12 @@ where
             .into(),
     )
 }
+
+/// Returns the nth line from the given string, or empty if out of bounds.
+pub fn read_nth_line(file_content: &str, line_number: usize) -> String {
+    file_content
+        .lines()
+        .nth(line_number)
+        .unwrap_or("")
+        .to_string()
+}
