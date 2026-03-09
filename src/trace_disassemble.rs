@@ -61,7 +61,7 @@ pub fn trace_disassemble(
                                 // Remapping did the trick, we can use the source from the local path.
                                 return (content, entry.file.to_string(), mapped_file_path);
                             }
-                            // Fill still not found.
+                            // File still not found.
                             ("".into(), entry.file.to_string(), "".into())
                         }
                     });

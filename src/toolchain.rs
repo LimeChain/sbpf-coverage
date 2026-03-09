@@ -95,7 +95,7 @@ pub fn get_platform_tools_version(binary_rustc_version: &str) -> Option<String> 
         if !dir_name.to_string_lossy().starts_with("v") {
             continue;
         }
-        platform_tools_dirs.push(dir_name.display().to_string());
+        platform_tools_dirs.push(dir_name.to_string_lossy().to_string());
     }
 
     platform_tools_dirs.sort();
@@ -132,7 +132,7 @@ pub fn get_platform_tools_version(binary_rustc_version: &str) -> Option<String> 
 }
 
 /// Maps a DWARF-recorded source path to a local filesystem path.
-/// DWARF paths from platform-tools builds use the CI runner's absolute paths (e.g. /home/runner/...).
+/// DWARF paths from CI/build environments use absolute paths (e.g. /home/runner/...).
 /// If a rust source root is available, paths containing `/library/` are remapped to the local toolchain sysroot.
 pub fn map_dwarf_path(dwarf_path: &str, rust_src_root: Option<&str>, cargo_root: &str) -> String {
     if let (Some(rust_src_root), Some(pos)) = (rust_src_root, dwarf_path.find("/library/")) {
