@@ -74,19 +74,21 @@ pub fn trace_disassemble(
                 } else {
                     format!("{}:{}", file_path, entry.line)
                 };
+                let is_user_src = src_paths
+                    .iter()
+                    .any(|path| file_path.contains(&path.to_string_lossy().to_string()));
+                // User source lines use ">>>" prefix for easy searching.
+                let marker = if is_user_src { ">>> " } else { "  " };
                 if colorize {
-                    let is_user_src = src_paths
-                        .iter()
-                        .any(|path| file_path.contains(&path.to_string_lossy().to_string()));
                     // Highlight user source files in purple, other files (e.g. dependencies) in blue.
                     let file_color = if is_user_src { "\x1b[35m" } else { "\x1b[34m" };
                     eprintln!(
-                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  \x1b[33msrc:\x1b[0m {file_color}{src_location}\x1b[0m\n  \x1b[36mcode:\x1b[0m \x1b[32m{}\x1b[0m",
+                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n{marker}\x1b[33msrc:\x1b[0m {file_color}{src_location}\x1b[0m\n{marker}\x1b[36mcode:\x1b[0m \x1b[32m{}\x1b[0m",
                         code.trim(),
                     );
                 } else {
                     eprintln!(
-                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  src: {src_location}\n  code: {}",
+                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n{marker}src: {src_location}\n{marker}code: {}",
                         code.trim(),
                     );
                 }
