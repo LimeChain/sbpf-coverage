@@ -1,7 +1,8 @@
-use addr2line::Loader;
+use addr2line::gimli::{DW_AT_language, DW_AT_producer, DW_TAG_compile_unit};
+pub use addr2line::{self, Loader};
 use anyhow::{Result, anyhow, bail};
 use byteorder::{LittleEndian, ReadBytesExt};
-use object::{Object, ObjectSection};
+pub use object::{Object, ObjectSection};
 use std::{
     collections::{BTreeMap, HashSet},
     fs::{File, OpenOptions, metadata},
@@ -15,12 +16,22 @@ mod trace_disassemble;
 mod start_address;
 use start_address::start_address;
 
+pub mod toolchain;
 pub mod util;
 use util::StripCurrentDir;
 
-use crate::util::{compute_hash, find_files_with_extension, get_section_start_address};
+use crate::util::{
+    compute_hash, find_files_with_extension, get_dwarf_attribute, get_section_start_address,
+};
 
 mod vaddr;
+
+#[derive(Debug)]
+pub struct DebugPath {
+    pub path: PathBuf,
+    pub producer: Option<String>,
+    pub lang: Option<String>,
+}
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct Entry<'a> {
@@ -29,7 +40,7 @@ struct Entry<'a> {
 }
 
 struct Dwarf {
-    path: PathBuf,
+    debug_path: DebugPath,
     #[allow(dead_code)]
     so_path: PathBuf,
     so_hash: String,
@@ -67,7 +78,7 @@ pub fn run(
 
     let dwarfs = debug_paths
         .into_iter()
-        .map(|path| build_dwarf(&path, &src_paths, trace_disassemble))
+        .map(|path| build_dwarf(path, &src_paths, trace_disassemble))
         .collect::<Result<Vec<_>>>()
         .expect("Can't build dwarf");
 
@@ -127,7 +138,7 @@ If you are done generating lcov files, try running:
     Ok(())
 }
 
-fn debug_paths(sbf_paths: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
+fn debug_paths(sbf_paths: Vec<PathBuf>) -> Result<Vec<DebugPath>> {
     // It's possible that the debug information is in the .so file itself
     let so_files = find_files_with_extension(&sbf_paths, "so");
     // It's also possible that it ends with .debug
@@ -139,17 +150,23 @@ fn debug_paths(sbf_paths: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
     // Collect only those files that contain debug sections
     let full_list = maybe_list
         .into_iter()
-        .filter(|maybe_path| {
-            let Ok(data) = std::fs::read(maybe_path) else {
-                return false;
-            };
-            let Ok(object) = object::read::File::parse(&*data) else {
-                return false;
-            };
+        .filter_map(|maybe_path| {
+            let data = std::fs::read(&maybe_path).ok()?;
+            let object = object::read::File::parse(&*data).ok()?;
             // check it has debug sections
-            object
+            let has_debug = object
                 .sections()
-                .any(|section| section.name().is_ok_and(|n| n.starts_with(".debug_")))
+                .any(|section| section.name().is_ok_and(|n| n.starts_with(".debug_")));
+            // get compiler information if any
+            let producer = get_dwarf_attribute(&object, DW_TAG_compile_unit, DW_AT_producer).ok();
+            // get lang information if any
+            let lang = get_dwarf_attribute(&object, DW_TAG_compile_unit, DW_AT_language).ok();
+
+            has_debug.then_some(DebugPath {
+                path: maybe_path,
+                producer,
+                lang,
+            })
         })
         .collect();
 
@@ -158,16 +175,16 @@ fn debug_paths(sbf_paths: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
 }
 
 fn build_dwarf(
-    debug_path: &Path,
+    debug_path: DebugPath,
     src_paths: &HashSet<PathBuf>,
     trace_disassemble: bool,
 ) -> Result<Dwarf> {
-    let start_address = start_address(debug_path)?;
+    let start_address = start_address(&debug_path.path)?;
 
-    let loader = Loader::new(debug_path).map_err(|error| {
+    let loader = Loader::new(&debug_path.path).map_err(|error| {
         anyhow!(
             "failed to build loader for {}: {}",
-            debug_path.display(),
+            debug_path.path.display(),
             error
         )
     })?;
@@ -176,18 +193,19 @@ fn build_dwarf(
 
     eprintln!(
         "Trying to build a DWARF entry with debug path: {}",
-        debug_path.strip_current_dir().display()
+        debug_path.path.strip_current_dir().display()
     );
 
-    let vaddr_entry_map = build_vaddr_entry_map(loader, debug_path, src_paths, trace_disassemble)?;
+    let vaddr_entry_map =
+        build_vaddr_entry_map(loader, &debug_path.path, src_paths, trace_disassemble)?;
 
     // Suppose debug_path is program.debug, swap with .so and try
-    let mut so_path = debug_path.with_extension("so");
+    let mut so_path = debug_path.path.with_extension("so");
     let so_content = match std::fs::read(&so_path) {
         Err(e) => {
             if e.kind() == std::io::ErrorKind::NotFound {
                 // We might have program.so.debug - simply cut debug and try
-                so_path = debug_path.with_extension("");
+                so_path = debug_path.path.with_extension("");
                 std::fs::read(&so_path)?
             } else {
                 return Err(e.into());
@@ -198,13 +216,13 @@ fn build_dwarf(
     let so_hash = compute_hash(&so_content);
     eprintln!(
         "Found a match:\n{} to\n{} (SHA-256: {})",
-        debug_path.strip_current_dir().display(),
+        debug_path.path.strip_current_dir().display(),
         so_path.strip_current_dir().display(),
         &so_hash[..16],
     );
 
     Ok(Dwarf {
-        path: debug_path.to_path_buf(),
+        debug_path,
         so_path,
         so_hash,
         start_address,
@@ -237,7 +255,7 @@ fn process_regs_path(
 
     eprintln!(
         "Applicable dwarf: {}",
-        dwarf.path.strip_current_dir().display()
+        dwarf.debug_path.path.strip_current_dir().display()
     );
 
     assert!(
