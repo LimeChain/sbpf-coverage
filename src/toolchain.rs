@@ -21,7 +21,9 @@ pub fn get_toolchain_sysroot(debug_path: &DebugPath) -> Option<String> {
                 None
             });
 
-            return sysroot;
+            // Stdlib sources live under <sysroot>/lib/rustlib/src/rust,
+            // append that so the returned path is directly usable for remapping.
+            return sysroot.map(|s| format!("{}/lib/rustlib/src/rust", s.trim()));
         }
     }
 
@@ -50,8 +52,8 @@ pub fn rustc_toolchain_from_producer(producer: &str) -> Option<String> {
     } else {
         // Handle Solana's fork here
         // "1.89.0-dev)" -> "1.89.0-sbpf-solana-v1.53"
-        let _version = after.split(['-', ' ', ')']).next()?;
-        todo!() // TODO
+        let version = after.split(['-', ' ', ')']).next()?;
+        Some(format!("{version}-sbpf-solana-v1.53")) // TODO: detect platform-tools version
     }
 }
 

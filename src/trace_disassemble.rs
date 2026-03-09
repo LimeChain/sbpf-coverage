@@ -43,24 +43,36 @@ pub fn trace_disassemble(
                 eprintln!("[{pc_in_disassemble}] (0x{pc:x}) {disassemble}");
             }
             Some((_, entry)) => {
-                let (content, file_path) = file_cache.entry(entry.file).or_insert_with(|| {
-                    // If we can't find the file try to remap the path directing to the toolchain sources.
-                    if let Ok(content) = std::fs::read_to_string(entry.file) {
-                        (content, entry.file.to_string())
-                    } else {
-                        let mapped_dwarf_path =
-                            map_dwarf_path(&entry.file, toolchain_path.as_deref(), &cargo_home());
-                        if mapped_dwarf_path != entry.file {
-                            if let Ok(content) = std::fs::read_to_string(&mapped_dwarf_path) {
-                                // Remapping did the trick, we can use the source from the toolchain path.
-                                return (content, mapped_dwarf_path.to_string());
+                let (content, file_path, mapped_file_path) =
+                    file_cache.entry(entry.file).or_insert_with(|| {
+                        // If we can't find the file try to remap the path directing to the local sources.
+                        if let Ok(content) = std::fs::read_to_string(entry.file) {
+                            (content, entry.file.to_string(), "".into())
+                        } else {
+                            let mapped_file_path = map_dwarf_path(
+                                &entry.file,
+                                toolchain_path.as_deref(),
+                                &cargo_home(),
+                            );
+                            if mapped_file_path != entry.file {
+                                if let Ok(content) = std::fs::read_to_string(&mapped_file_path) {
+                                    // Remapping did the trick, we can use the source from the local path.
+                                    return (content, entry.file.to_string(), mapped_file_path);
+                                }
                             }
+                            // Fill still not found.
+                            ("".into(), entry.file.to_string(), "".into())
                         }
-                        // Fill still not found.
-                        ("".into(), entry.file.to_string())
-                    }
-                });
+                    });
                 let code = read_nth_line(content, entry.line.saturating_sub(1) as usize);
+                let src_location = if !mapped_file_path.is_empty() {
+                    format!(
+                        "{}:{} -> {}:{}",
+                        file_path, entry.line, mapped_file_path, entry.line
+                    )
+                } else {
+                    format!("{}:{}", file_path, entry.line)
+                };
                 if colorize {
                     let is_user_src = src_paths
                         .iter()
@@ -68,16 +80,12 @@ pub fn trace_disassemble(
                     // Highlight user source files in purple, other files (e.g. dependencies) in blue.
                     let file_color = if is_user_src { "\x1b[35m" } else { "\x1b[34m" };
                     eprintln!(
-                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  \x1b[33msrc:\x1b[0m {file_color}{}:{}\x1b[0m\n  \x1b[36mcode:\x1b[0m \x1b[32m{}\x1b[0m",
-                        file_path,
-                        entry.line,
+                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  \x1b[33msrc:\x1b[0m {file_color}{src_location}\x1b[0m\n  \x1b[36mcode:\x1b[0m \x1b[32m{}\x1b[0m",
                         code.trim(),
                     );
                 } else {
                     eprintln!(
-                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  src: {}:{}\n  code: {}",
-                        file_path,
-                        entry.line,
+                        "[{pc_in_disassemble}] (0x{pc:x}) {disassemble}\n  src: {src_location}\n  code: {}",
                         code.trim(),
                     );
                 }
@@ -113,7 +121,10 @@ fn map_dwarf_path(dwarf_path: &str, rust_src_root: Option<&str>, cargo_root: &st
     if let (Some(rust_src_root), Some(pos)) = (rust_src_root, dwarf_path.find("/library/")) {
         let suffix = &dwarf_path[pos..];
         return format!("{}/{}", rust_src_root, suffix);
-    } else if let Some(pos) = dwarf_path.find(".cargo/registry/") {
+    } else if let Some(pos) = dwarf_path
+        .find(".cargo/registry/")
+        .or_else(|| dwarf_path.find(".cargo/git/"))
+    {
         let suffix = &dwarf_path[pos + ".cargo/".len()..];
         return format!("{}/{}", cargo_root, suffix);
     } else {
