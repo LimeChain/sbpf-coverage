@@ -51,14 +51,14 @@ pub fn rustc_toolchain_from_producer(producer: &str) -> Option<String> {
             .next()?
             .split_whitespace()
             .nth(1)?;
-        Some(format!("nightly-{date}"))
+        Some(format!("nightly-{date}")).inspect(|ver| eprintln!("Rustc likely: {}", ver))
     } else {
         // Handle Solana's fork here
         // "1.89.0-dev)" -> "1.89.0-sbpf-solana-v1.53"
         let rustc_version = after
             .split([' ', ')'])
             .next()
-            .inspect(|ver| eprintln!("Rustc version: {}", ver))?;
+            .inspect(|ver| eprintln!("Rustc likely: {}", ver))?;
         // remove the -dev
         let rustc_version = rustc_version.split(['-']).next()?;
         let platform_tools_version = get_platform_tools_version(rustc_version)?;
