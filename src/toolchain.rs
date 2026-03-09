@@ -1,19 +1,31 @@
-use std::path::{Path, PathBuf};
-
 use crate::{DebugPath, util::execute_cmd};
+use std::path::PathBuf;
 
-pub fn get_toolchain_source_path(debug_path: &DebugPath) -> Option<String> {
+/// Resolves the rustc sysroot for the toolchain that compiled the binary.
+/// Uses the DW_AT_producer DWARF attribute to identify the toolchain,
+/// then calls `rustc +<toolchain> --print sysroot` to get the local path.
+/// The sysroot contains stdlib sources needed to remap DWARF file paths.
+pub fn get_toolchain_sysroot(debug_path: &DebugPath) -> Option<String> {
     if debug_path.lang == Some("DW_LANG_Rust".into()) {
         if let Some(producer) = debug_path.producer.as_ref() {
-            let toolchain = rustc_toolchain_from_producer(&producer)?;
+            let toolchain = rustc_toolchain_from_producer(&producer).or_else(|| {
+                eprintln!("Failed to extract toolchain from DW_AT_producer");
+                None
+            })?;
             let sysroot = execute_cmd(
                 &PathBuf::from("rustc"),
                 [&format!("+{toolchain}"), "--print", "sysroot"],
-            )?;
+            )
+            .or_else(|| {
+                eprintln!("Failed to extract sysroot for toolchain {toolchain}");
+                None
+            });
+
+            return sysroot;
         }
     }
 
-    todo!()
+    None
 }
 
 /// Extracts the rustc toolchain specifier from the DW_AT_producer string.
@@ -27,7 +39,6 @@ pub fn rustc_toolchain_from_producer(producer: &str) -> Option<String> {
     if !after.contains("-dev") {
         // Handle upstream eBPF here
         // "1.96.0-nightly (80381278a 2026-03-01))" -> "nightly-2026-03-01"
-        eprintln!("BLABLA");
         let date = after
             .split('(')
             .nth(1)?
@@ -39,7 +50,14 @@ pub fn rustc_toolchain_from_producer(producer: &str) -> Option<String> {
     } else {
         // Handle Solana's fork here
         // "1.89.0-dev)" -> "1.89.0-sbpf-solana-v1.53"
-        let version = after.split(['-', ' ', ')']).next()?;
+        let _version = after.split(['-', ' ', ')']).next()?;
         todo!() // TODO
     }
+}
+
+/// Returns the Cargo home directory, where registry sources and caches are stored.
+/// Respects the CARGO_HOME environment variable, defaulting to ~/.cargo.
+pub fn cargo_home() -> String {
+    std::env::var("CARGO_HOME")
+        .unwrap_or_else(|_| format!("{}/.cargo", std::env::var("HOME").unwrap()))
 }

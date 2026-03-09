@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use crate::toolchain::get_toolchain_source_path;
+use crate::toolchain::{cargo_home, get_toolchain_sysroot};
 use crate::{Dwarf, Outcome};
 use anyhow::Result;
 
@@ -17,8 +17,8 @@ pub fn trace_disassemble(
     // As we read files too often introduce a cache.
     let mut file_cache = HashMap::new();
 
-    // Get info about the toolchain used for this debug object
-    let toolchain_path = get_toolchain_source_path(&dwarf.debug_path);
+    // Get toolchain path used for this debug object
+    let toolchain_path = get_toolchain_sysroot(&dwarf.debug_path);
 
     // Take advantage of the `SBF_TRACE_DISASSEMBLE` generated trace
     // that is dumped into `.trace` (if requested). We can't generate it here because
@@ -44,11 +44,20 @@ pub fn trace_disassemble(
             }
             Some((_, entry)) => {
                 let (content, file_path) = file_cache.entry(entry.file).or_insert_with(|| {
-                    // If we can't find the file try to look it up in the toolchain sources.
+                    // If we can't find the file try to remap the path directing to the toolchain sources.
                     if let Ok(content) = std::fs::read_to_string(entry.file) {
                         (content, entry.file.to_string())
                     } else {
-                        todo!()
+                        let mapped_dwarf_path =
+                            map_dwarf_path(&entry.file, toolchain_path.as_deref(), &cargo_home());
+                        if mapped_dwarf_path != entry.file {
+                            if let Ok(content) = std::fs::read_to_string(&mapped_dwarf_path) {
+                                // Remapping did the trick, we can use the source from the toolchain path.
+                                return (content, mapped_dwarf_path.to_string());
+                            }
+                        }
+                        // Fill still not found.
+                        ("".into(), entry.file.to_string())
                     }
                 });
                 let code = read_nth_line(content, entry.line.saturating_sub(1) as usize);
@@ -95,4 +104,20 @@ pub fn read_nth_line(file_content: &str, line_number: usize) -> String {
 pub fn pc_in_disassemble(pc_in_trace: u64, dwarf: &Dwarf) -> Result<u64> {
     let pc_in_disassembly = (pc_in_trace - dwarf.text_section_offset) / 8;
     Ok(pc_in_disassembly)
+}
+
+/// Maps a DWARF-recorded source path to a local filesystem path.
+/// DWARF paths from platform-tools builds use the CI runner's absolute paths (e.g. /home/runner/...).
+/// If a rust source root is available, paths containing `/library/` are remapped to the local toolchain sysroot.
+fn map_dwarf_path(dwarf_path: &str, rust_src_root: Option<&str>, cargo_root: &str) -> String {
+    if let (Some(rust_src_root), Some(pos)) = (rust_src_root, dwarf_path.find("/library/")) {
+        let suffix = &dwarf_path[pos..];
+        return format!("{}/{}", rust_src_root, suffix);
+    } else if let Some(pos) = dwarf_path.find(".cargo/registry/") {
+        let suffix = &dwarf_path[pos + ".cargo/".len()..];
+        return format!("{}/{}", cargo_root, suffix);
+    } else {
+        // fallback: path as-is
+        return dwarf_path.to_string();
+    }
 }
