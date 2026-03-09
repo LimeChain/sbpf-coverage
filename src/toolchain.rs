@@ -6,25 +6,25 @@ use std::path::PathBuf;
 /// then calls `rustc +<toolchain> --print sysroot` to get the local path.
 /// The sysroot contains stdlib sources needed to remap DWARF file paths.
 pub fn get_toolchain_sysroot(debug_path: &DebugPath) -> Option<String> {
-    if debug_path.lang == Some("DW_LANG_Rust".into()) {
-        if let Some(producer) = debug_path.producer.as_ref() {
-            let toolchain = rustc_toolchain_from_producer(&producer).or_else(|| {
-                eprintln!("Failed to extract toolchain from DW_AT_producer");
-                None
-            })?;
-            let sysroot = execute_cmd(
-                &PathBuf::from("rustc"),
-                [&format!("+{toolchain}"), "--print", "sysroot"],
-            )
-            .or_else(|| {
-                eprintln!("Failed to extract sysroot for toolchain {toolchain}");
-                None
-            });
+    if debug_path.lang == Some("DW_LANG_Rust".into())
+        && let Some(producer) = debug_path.producer.as_ref()
+    {
+        let toolchain = rustc_toolchain_from_producer(producer).or_else(|| {
+            eprintln!("Failed to extract toolchain from DW_AT_producer");
+            None
+        })?;
+        let sysroot = execute_cmd(
+            &PathBuf::from("rustc"),
+            [&format!("+{toolchain}"), "--print", "sysroot"],
+        )
+        .or_else(|| {
+            eprintln!("Failed to extract sysroot for toolchain {toolchain}");
+            None
+        });
 
-            // Stdlib sources live under <sysroot>/lib/rustlib/src/rust,
-            // append that so the returned path is directly usable for remapping.
-            return sysroot.map(|s| format!("{}/lib/rustlib/src/rust", s.trim()));
-        }
+        // Stdlib sources live under <sysroot>/lib/rustlib/src/rust,
+        // append that so the returned path is directly usable for remapping.
+        return sysroot.map(|s| format!("{}/lib/rustlib/src/rust", s.trim()));
     }
 
     None

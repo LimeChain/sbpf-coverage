@@ -50,15 +50,15 @@ pub fn trace_disassemble(
                             (content, entry.file.to_string(), "".into())
                         } else {
                             let mapped_file_path = map_dwarf_path(
-                                &entry.file,
+                                entry.file,
                                 toolchain_path.as_deref(),
                                 &cargo_home(),
                             );
-                            if mapped_file_path != entry.file {
-                                if let Ok(content) = std::fs::read_to_string(&mapped_file_path) {
-                                    // Remapping did the trick, we can use the source from the local path.
-                                    return (content, entry.file.to_string(), mapped_file_path);
-                                }
+                            if mapped_file_path != entry.file
+                                && let Ok(content) = std::fs::read_to_string(&mapped_file_path)
+                            {
+                                // Remapping did the trick, we can use the source from the local path.
+                                return (content, entry.file.to_string(), mapped_file_path);
                             }
                             // Fill still not found.
                             ("".into(), entry.file.to_string(), "".into())
@@ -120,15 +120,15 @@ pub fn pc_in_disassemble(pc_in_trace: u64, dwarf: &Dwarf) -> Result<u64> {
 fn map_dwarf_path(dwarf_path: &str, rust_src_root: Option<&str>, cargo_root: &str) -> String {
     if let (Some(rust_src_root), Some(pos)) = (rust_src_root, dwarf_path.find("/library/")) {
         let suffix = &dwarf_path[pos..];
-        return format!("{}/{}", rust_src_root, suffix);
+        format!("{}/{}", rust_src_root, suffix)
     } else if let Some(pos) = dwarf_path
         .find(".cargo/registry/")
         .or_else(|| dwarf_path.find(".cargo/git/"))
     {
         let suffix = &dwarf_path[pos + ".cargo/".len()..];
-        return format!("{}/{}", cargo_root, suffix);
+        format!("{}/{}", cargo_root, suffix)
     } else {
         // fallback: path as-is
-        return dwarf_path.to_string();
+        dwarf_path.to_string()
     }
 }

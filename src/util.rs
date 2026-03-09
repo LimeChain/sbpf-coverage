@@ -76,21 +76,21 @@ pub fn get_dwarf_attribute(
         };
         let mut entries = unit.entries();
         while let Ok(Some(entry)) = entries.next_dfs() {
-            if let Some(val) = entry.attr_value(attribute) {
-                if entry.tag() == tag {
-                    match attribute {
-                        a if a == DW_AT_producer => {
-                            if let Some(s) = dwarf.attr_string(&unit, val).ok() {
-                                return Ok(s.to_string_lossy().to_string());
-                            }
+            if let Some(val) = entry.attr_value(attribute)
+                && entry.tag() == tag
+            {
+                match attribute {
+                    a if a == DW_AT_producer => {
+                        if let Ok(s) = dwarf.attr_string(&unit, val) {
+                            return Ok(s.to_string_lossy().to_string());
                         }
-                        a if a == DW_AT_language => {
-                            if let gimli::AttributeValue::Language(lang) = val {
-                                return Ok(lang.to_string());
-                            }
-                        }
-                        _ => continue,
                     }
+                    a if a == DW_AT_language => {
+                        if let gimli::AttributeValue::Language(lang) = val {
+                            return Ok(lang.to_string());
+                        }
+                    }
+                    _ => continue,
                 }
             }
         }
