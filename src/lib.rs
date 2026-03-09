@@ -108,9 +108,7 @@ Are you sure you run your tests with register tracing enabled",
             Ok(Outcome::Lcov(lcov_path)) => {
                 lcov_paths.push(lcov_path.strip_current_dir().to_path_buf());
             }
-            Ok(Outcome::TraceDisassemble) => {
-                return Ok(());
-            }
+            Ok(Outcome::TraceDisassemble) => {}
             _ => {
                 eprintln!(
                     "Skipping Regs file: {} (no matching executable)",
@@ -120,8 +118,9 @@ Are you sure you run your tests with register tracing enabled",
         }
     }
 
-    eprintln!(
-        "
+    if !trace_disassemble {
+        eprintln!(
+            "
 Processed {} of {} regs files
 
 Lcov files written: {lcov_paths:#?}
@@ -130,10 +129,11 @@ If you are done generating lcov files, try running:
 
     genhtml --output-directory coverage {}/*.lcov --rc branch_coverage=1 && open coverage/index.html
 ",
-        lcov_paths.len(),
-        regs_paths.len(),
-        sbf_trace_dir.as_path().strip_current_dir().display()
-    );
+            lcov_paths.len(),
+            regs_paths.len(),
+            sbf_trace_dir.as_path().strip_current_dir().display()
+        );
+    }
 
     Ok(())
 }
