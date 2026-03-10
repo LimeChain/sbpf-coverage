@@ -94,7 +94,7 @@ pub fn run(
         return Ok(());
     }
 
-    let regs_paths = find_files_with_extension(std::slice::from_ref(&sbf_trace_dir), "regs");
+    let mut regs_paths = find_files_with_extension(std::slice::from_ref(&sbf_trace_dir), "regs");
     if regs_paths.is_empty() {
         bail!(
             "Found no regs files in: {}
@@ -102,6 +102,12 @@ Are you sure you run your tests with register tracing enabled",
             sbf_trace_dir.strip_current_dir().display(),
         );
     }
+    // Sort paths by modification time.
+    regs_paths.sort_by_key(|p| {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::UNIX_EPOCH)
+    });
 
     for regs_path in &regs_paths {
         match process_regs_path(&dwarfs, regs_path, &src_paths, trace_disassemble, no_color) {
