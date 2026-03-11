@@ -76,25 +76,31 @@ In addition to generating coverage data, `sbpf-coverage` can also provide a mapp
 program counters, SBPF disassembly, and your native source code. This is useful for understanding
 exactly which instructions correspond to which lines of your program.
 
-The executable must include debug symbols (best in a separate file `.so.debug`). For best results, build with optimizations enabled
-and ensure debug information is preserved. Use `-Copt-level=2` or `-Copt-level=3` depending on
-the optimization level you want to inspect:
+For experimenting, build with optimizations enabled and ensure debug information is preserved.
+Use `-Copt-level=2` or `-Copt-level=3` depending on the optimization level you want to inspect:
 
 ```sh
 RUSTFLAGS="-C strip=none -C debuginfo=2 -Copt-level=2" cargo-build-sbf --tools-version v1.53 --debug
+```
+
+For probably the closest to production-like code:
+
+```sh
+RUSTFLAGS="-C strip=none -C debuginfo=2" cargo-build-sbf --tools-version v1.53 --debug -- --release
 ```
 
 > **Note:** Currently `--debug` tells `cargo-build-sbf` to build *without* `--release`, which
 > means no optimizations. The `RUSTFLAGS` above override this by forcing the desired opt-level.
 > For a fully production-like build, you would also want LTO (`lto = "thin"` or `lto = "fat"`)
 > and `codegen-units = 1`, but these are only applied in `--release` mode.
-> Ideally, `cargo-build-sbf` would support a mode that builds with `--release` (optimizations
-> enabled) while preserving the debug sections — this would produce the most accurate
-> disassembly mapping against production-like code. This is the case with Blueshift's
-> [sbpf-linker](https://github.com/blueshift-gg/sbpf-linker/pull/19) which can preserve debug
+> Since [agave#11015](https://github.com/anza-xyz/agave/pull/11015) got merged,
+> `cargo-build-sbf` now supports building with `--release` while preserving the debug
+> sections (`.so.debug`). This produces probably the most accurate disassembly mapping against
+> production-like code. Additionally, Blueshift's
+> [sbpf-linker](https://github.com/blueshift-gg/sbpf-linker/pull/19) can also preserve debug
 > sections in optimized release builds.
 
-To use this feature, first collect the register tracing data with `SBF_TRACE_DISASSEMBLE` set:
+To use this feature, first collect the register tracing data (since [mollusk#199](https://github.com/anza-xyz/mollusk/pull/199) and LiteSVM 0.10.0) with `SBF_TRACE_DISASSEMBLE` set:
 
 ```sh
 SBF_TRACE_DISASSEMBLE=1 SBF_TRACE_DIR=$PWD/sbf_trace_dir cargo test -- --nocapture
