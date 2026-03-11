@@ -224,7 +224,7 @@ fn build_dwarf(
     };
     let so_hash = compute_hash(&so_content);
     eprintln!(
-        "DWARF: {} -> {} (sha256: {})",
+        "DWARF: {} -> {} (exec sha256: {})",
         debug_path.path.strip_current_dir().display(),
         so_path.strip_current_dir().display(),
         &so_hash[..16],
@@ -252,7 +252,7 @@ fn process_regs_path(
     let exec_sha256 = std::fs::read_to_string(regs_path.with_extension("exec.sha256"))?;
     let (mut vaddrs, regs) = read_vaddrs(regs_path)?;
     eprintln!(
-        "Regs: {} ({} entries, sha256: {})",
+        "Regs: {} ({} entries, exec sha256: {})",
         regs_path.strip_current_dir().display(),
         vaddrs.len(),
         &exec_sha256[..16],
@@ -399,7 +399,7 @@ fn find_applicable_dwarf<'a>(
         ))?;
 
     eprintln!(
-        "Matched: {} -> {} (sha256: {})",
+        "Matched: {} -> {} (exec sha256: {})",
         regs_path.strip_current_dir().display(),
         dwarf.debug_path.path.strip_current_dir().display(),
         &dwarf.so_hash[..16],
