@@ -154,7 +154,7 @@ fn debug_paths(sbf_paths: Vec<PathBuf>) -> Result<Vec<DebugPath>> {
     maybe_list.extend(debug_files);
 
     // Collect only those files that contain debug sections
-    let full_list = maybe_list
+    let full_list: Vec<DebugPath> = maybe_list
         .into_iter()
         .filter_map(|maybe_path| {
             let data = std::fs::read(&maybe_path).ok()?;
@@ -176,7 +176,15 @@ fn debug_paths(sbf_paths: Vec<PathBuf>) -> Result<Vec<DebugPath>> {
         })
         .collect();
 
-    eprintln!("Files containing debug sections: {:#?}", full_list);
+    eprintln!("Debug symbols found:");
+    for dp in full_list.iter() {
+        eprintln!(
+            "  {} (producer: {}, lang: {})",
+            dp.path.strip_current_dir().display(),
+            dp.producer.as_deref().unwrap_or("unknown"),
+            dp.lang.as_deref().unwrap_or("unknown"),
+        );
+    }
     Ok(full_list)
 }
 
@@ -197,11 +205,6 @@ fn build_dwarf(
 
     let loader = Box::leak(Box::new(loader));
 
-    eprintln!(
-        "Trying to build a DWARF entry with debug path: {}",
-        debug_path.path.strip_current_dir().display()
-    );
-
     let vaddr_entry_map =
         build_vaddr_entry_map(loader, &debug_path.path, src_paths, trace_disassemble)?;
 
@@ -221,7 +224,7 @@ fn build_dwarf(
     };
     let so_hash = compute_hash(&so_content);
     eprintln!(
-        "Found a match:\n{} to\n{} (SHA-256: {})",
+        "DWARF: {} -> {} (sha256: {})",
         debug_path.path.strip_current_dir().display(),
         so_path.strip_current_dir().display(),
         &so_hash[..16],
@@ -247,22 +250,16 @@ fn process_regs_path(
 ) -> Result<Outcome> {
     eprintln!();
     let exec_sha256 = std::fs::read_to_string(regs_path.with_extension("exec.sha256"))?;
-    eprintln!(
-        "Regs file: {} (expecting executable with SHA-256: {})",
-        regs_path.strip_current_dir().display(),
-        &exec_sha256[..16]
-    );
-
     let (mut vaddrs, regs) = read_vaddrs(regs_path)?;
-    eprintln!("Regs read: {}", vaddrs.len());
+    eprintln!(
+        "Regs: {} ({} entries, sha256: {})",
+        regs_path.strip_current_dir().display(),
+        vaddrs.len(),
+        &exec_sha256[..16],
+    );
     let insns = read_insns(&regs_path.with_extension("insns"))?;
 
     let dwarf = find_applicable_dwarf(dwarfs, regs_path, &exec_sha256, &mut vaddrs)?;
-
-    eprintln!(
-        "Applicable dwarf: {}",
-        dwarf.debug_path.path.strip_current_dir().display()
-    );
 
     assert!(
         vaddrs
@@ -402,9 +399,10 @@ fn find_applicable_dwarf<'a>(
         ))?;
 
     eprintln!(
-        "Matching Regs file {} to executable with SHA-256: {}",
+        "Matched: {} -> {} (sha256: {})",
         regs_path.strip_current_dir().display(),
-        &dwarf.so_hash[..16]
+        dwarf.debug_path.path.strip_current_dir().display(),
+        &dwarf.so_hash[..16],
     );
     let vaddr_first = *vaddrs.first().ok_or(anyhow!("Vaddrs is empty!"))?;
     assert!(dwarf.start_address >= vaddr_first);
