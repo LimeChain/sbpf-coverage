@@ -1,6 +1,6 @@
 [package]
 name = "sbpf-coverage"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Boris Astardzhiev <boris.astardzhiev@gmail.com>", "Samuel Moelius <sam@moeli.us>"]
 description = "Maps SBPF execution traces to source code for test coverage and trace disassembly of Solana programs"
 edition = "2024"
