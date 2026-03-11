@@ -9,12 +9,21 @@ pub fn get_toolchain_sysroot(debug_path: &DebugPath) -> Option<String> {
     if debug_path.lang == Some("DW_LANG_Rust".into())
         && let Some(producer) = debug_path.producer.as_ref()
     {
-        let toolchain = rustc_toolchain_from_producer(producer)
-            .or_else(|| {
+        let (toolchain, platform_tools) =
+            rustc_toolchain_from_producer(producer).or_else(|| {
                 eprintln!("Failed to extract toolchain from DW_AT_producer");
                 None
-            })
-            .inspect(|t| eprintln!("Toolchain likely: {}", t))?;
+            })?;
+        let file_name = debug_path
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy())
+            .unwrap_or_default();
+        let pt = platform_tools
+            .as_ref()
+            .map(|v| format!(", platform-tools {v}"))
+            .unwrap_or_default();
+        eprintln!("{file_name} likely: compiler {producer}{pt}, toolchain {toolchain}");
         let sysroot = execute_cmd(
             &PathBuf::from("rustc"),
             [&format!("+{toolchain}"), "--print", "sysroot"],
@@ -33,8 +42,9 @@ pub fn get_toolchain_sysroot(debug_path: &DebugPath) -> Option<String> {
 }
 
 /// Extracts the rustc toolchain specifier from the DW_AT_producer string.
-/// Returns e.g. "1.89.0-sbpf-solana-v1.53" or "nightly-2026-03-01".
-pub fn rustc_toolchain_from_producer(producer: &str) -> Option<String> {
+/// Returns (toolchain, optional platform-tools version),
+/// e.g. ("1.89.0-sbpf-solana-v1.53", Some("v1.53")) or ("nightly-2026-03-01", None).
+pub fn rustc_toolchain_from_producer(producer: &str) -> Option<(String, Option<String>)> {
     let after = producer.split("rustc version ").nth(1)?;
 
     // Till now there are two scenarios:
@@ -51,19 +61,17 @@ pub fn rustc_toolchain_from_producer(producer: &str) -> Option<String> {
             .next()?
             .split_whitespace()
             .nth(1)?;
-        Some(format!("nightly-{date}")).inspect(|ver| eprintln!("Rustc likely: {}", ver))
+        Some((format!("nightly-{date}"), None))
     } else {
         // Handle Solana's fork here
         // "1.89.0-dev)" -> "1.89.0-sbpf-solana-v1.53"
-        let rustc_version = after
-            .split([' ', ')'])
-            .next()
-            .inspect(|ver| eprintln!("Rustc likely: {}", ver))?;
+        let rustc_version = after.split([' ', ')']).next()?;
         // remove the -dev
         let rustc_version = rustc_version.split(['-']).next()?;
         let platform_tools_version = get_platform_tools_version(rustc_version)?;
-        Some(format!(
-            "{rustc_version}-sbpf-solana-{platform_tools_version}"
+        Some((
+            format!("{rustc_version}-sbpf-solana-{platform_tools_version}"),
+            Some(platform_tools_version),
         ))
     }
 }
@@ -131,7 +139,6 @@ pub fn get_platform_tools_version(binary_rustc_version: &str) -> Option<String> 
         })
         .map(|(ver, _)| ver)
         .next()
-        .inspect(|ver| eprintln!("Platform tools likely: {}", ver))
 }
 
 /// Maps a DWARF-recorded source path to a local filesystem path.

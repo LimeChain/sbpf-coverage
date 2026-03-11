@@ -4,8 +4,17 @@ use std::{collections::HashSet, path::PathBuf};
 
 fn main() -> Result<()> {
     let options = Args::parse();
-    let mode = if options.trace_disassemble { "trace" } else { "coverage" };
-    eprintln!("{} v{} ({})", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"), mode);
+    let mode = if options.trace_disassemble {
+        "trace"
+    } else {
+        "coverage"
+    };
+    eprintln!(
+        "{} v{} ({})",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION"),
+        mode
+    );
 
     let sbf_trace_dir = options.sbf_trace_dir;
     let src_paths: HashSet<_> = options.src_path.into_iter().collect();
