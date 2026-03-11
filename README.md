@@ -90,7 +90,8 @@ RUSTFLAGS="-C strip=none -C debuginfo=2" cargo-build-sbf --tools-version v1.53 -
 ```
 
 > **Note:** Currently `--debug` tells `cargo-build-sbf` to build *without* `--release`, which
-> means no optimizations. The `RUSTFLAGS` above override this by forcing the desired opt-level.
+> means no optimizations, and outputs artifacts to `target/deploy/debug` instead of `target/deploy`.
+> The `RUSTFLAGS` above override this by forcing the desired opt-level.
 > For a fully production-like build, you would also want LTO (`lto = "thin"` or `lto = "fat"`)
 > and `codegen-units = 1`, but these are only applied in `--release` mode.
 > Since [agave#11015](https://github.com/anza-xyz/agave/pull/11015) got merged,
@@ -111,7 +112,7 @@ This will generate `.trace` files alongside the register dumps in `sbf_trace_dir
 ```sh
 sbpf-coverage \
    --src-path=$PWD/programs/myapp/src/ \
-   --sbf-path=$PWD/target/deploy \
+   --sbf-path=$PWD/target/deploy/debug \
    --sbf-trace-dir=$PWD/sbf_trace_dir \
    --trace-disassemble
 ```
