@@ -44,6 +44,7 @@ struct Dwarf {
     #[allow(dead_code)]
     so_path: PathBuf,
     so_hash: String,
+    #[allow(dead_code, reason = "might be of use in the future")]
     start_address: u64,
     text_section_offset: u64,
     #[allow(dead_code, reason = "`vaddr` points into `loader`")]
@@ -261,12 +262,6 @@ fn process_regs_path(
 
     let dwarf = find_applicable_dwarf(dwarfs, regs_path, &exec_sha256, &mut vaddrs)?;
 
-    assert!(
-        vaddrs
-            .first()
-            .is_some_and(|&vaddr| vaddr == dwarf.start_address)
-    );
-
     if trace_disassemble {
         return trace_disassemble::trace_disassemble(
             src_paths, regs_path, &vaddrs, dwarf, !no_color,
@@ -404,13 +399,11 @@ fn find_applicable_dwarf<'a>(
         dwarf.debug_path.path.strip_current_dir().display(),
         &dwarf.so_hash[..16],
     );
-    let vaddr_first = *vaddrs.first().ok_or(anyhow!("Vaddrs is empty!"))?;
-    assert!(dwarf.start_address >= vaddr_first);
-    let shift = dwarf.start_address - vaddr_first;
 
-    // smoelius: Make the shift "permanent".
+    // Raw vaddrs from the register dump are byte offsets without the text section base.
+    // Add text_section_offset so they match the DWARF address space used for lookups.
     for vaddr in vaddrs.iter_mut() {
-        *vaddr += shift;
+        *vaddr += dwarf.text_section_offset;
     }
 
     Ok(dwarf)
