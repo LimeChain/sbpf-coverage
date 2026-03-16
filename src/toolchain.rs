@@ -63,13 +63,22 @@ pub fn rustc_toolchain_from_producer(producer: &str) -> Option<(String, Option<S
             .nth(1)?;
         Some((format!("nightly-{date}"), None))
     } else {
-        // Handle Solana's fork here
-        // "1.89.0-dev)" -> "1.89.0-sbpf-solana-v1.53"
-        let rustc_version = after.split([' ', ')']).next()?;
-        // remove the -dev
-        let rustc_version = rustc_version.split(['-']).next()?;
-        let platform_tools_version = get_platform_tools_version(rustc_version)?;
+        // Handle Solana's fork here, two possible cases:
+        // - DW_AT_producer ("clang LLVM (rustc version 1.89.0-dev)")
+        // - DW_AT_producer ("clang LLVM (rustc version 1.89.0-dev (daa3af4 2026-03-03))")
+        //   as https://github.com/anza-xyz/rust/pull/148 got merged
+        // "1.89.0-dev)" or "1.89.0-dev (daa3af4 2026-03-03))"
+        let version_dev = after.split(')').next()?;
+        let rustc_version = version_dev.split('-').next()?;
+        let producer_rustc_commit_hash = version_dev
+            .split('(')
+            .nth(1)
+            .and_then(|inner| inner.split_whitespace().next())
+            .map(String::from);
+        let platform_tools_version =
+            get_platform_tools_version(rustc_version, producer_rustc_commit_hash.as_deref())?;
         Some((
+            // "1.89.0-sbpf-solana-v1.53"
             format!("{rustc_version}-sbpf-solana-{platform_tools_version}"),
             Some(platform_tools_version),
         ))
@@ -86,7 +95,10 @@ pub fn cargo_home() -> String {
 /// Scans locally installed platform-tools in ~/.cache/solana/ to find which version
 /// contains a rustc matching the given version string (e.g. "1.89.0").
 /// Returns the version directory name (e.g. "v1.53") if found, starting from the latest.
-pub fn get_platform_tools_version(binary_rustc_version: &str) -> Option<String> {
+pub fn get_platform_tools_version(
+    binary_rustc_version: &str,
+    producer_rustc_commit_hash: Option<&str>,
+) -> Option<String> {
     let home_dir = std::env::var("HOME").ok()?;
     let base_line = format!("{}/.cache/solana", home_dir);
     let paths = std::fs::read_dir(&base_line).ok()?;
@@ -111,11 +123,9 @@ pub fn get_platform_tools_version(binary_rustc_version: &str) -> Option<String> 
 
     platform_tools_dirs.sort();
 
-    // Iterate backwards to start with latest toolchains.
-    // Though pretty optimistic (and technically inaccurate) choose the first
-    // matching. The problem is that the rustc git hash isn't included.
-    // Maybe will: https://github.com/anza-xyz/rust/pull/148
-    // TODO: To be precise use the hash and judge by it.
+    // Iterate backwards to start with the latest toolchain.
+    // If the producer includes a rustc commit hash, use it to narrow the match;
+    // otherwise fall back to version-string matching.
     platform_tools_dirs
         .iter()
         .rev()
@@ -125,7 +135,7 @@ pub fn get_platform_tools_version(binary_rustc_version: &str) -> Option<String> 
                 format!("{}/{}/platform-tools/rust/bin/rustc", base_line, ver),
             )
         })
-        .filter(|(_, rustc_path)| {
+        .filter(|(ver, rustc_path)| {
             if !PathBuf::from(&rustc_path).is_file() {
                 return false;
             }
@@ -134,6 +144,21 @@ pub fn get_platform_tools_version(binary_rustc_version: &str) -> Option<String> 
             else {
                 return false;
             };
+            let rustc_commit_hash =
+                std::fs::read_to_string(format!("{base_line}/{ver}/platform-tools/version.md"))
+                    .ok()
+                    .and_then(|version_file_content| {
+                        version_file_content
+                            .lines()
+                            .find(|line| line.contains("rust.git"))
+                            .and_then(|line| line.split(' ').next())
+                            .map(String::from)
+                    });
+            if let (Some(rch), Some(ch)) = (rustc_commit_hash, producer_rustc_commit_hash)
+                && !rch.starts_with(ch)
+            {
+                return false;
+            }
 
             platform_tools_rustc_version.contains(binary_rustc_version)
         })
