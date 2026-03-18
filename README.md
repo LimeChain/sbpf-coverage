@@ -121,6 +121,11 @@ The output shows each executed instruction alongside its disassembly, source fil
 the corresponding line of source code. To disable colored output (e.g. when piping to a file),
 pass `--no-color`.
 
+## Examples
+
+- [upstream-pinocchio-escrow](https://github.com/procdump/upstream-pinocchio-escrow/tree/debug_info_from_upstream_ebpf) — A Pinocchio escrow program built with upstream eBPF and debug info preserved. Demonstrates both code coverage and trace disassembly.
+- [surfpool-examples#6](https://github.com/txtx/surfpool-examples/pull/6) — An example Anchor app using Surfpool. Demonstrates both code coverage and trace disassembly.
+
 ## Known problems
 
 `sbpf-coverage` uses Dwarf debug information, not LLVM instrumentation-based coverage, to map instructions to source code locations. This can have confusing implications. For example:
