@@ -2,6 +2,10 @@
 
 A tool for computing test code coverage of Solana programs and providing trace disassembly mapping between SBPF instructions and source code.
 
+![coverage](assets/coverage.png)
+
+![disassembly](assets/disassembly.png)
+
 ## Prerequisites
 
 Install `lcov` to generate HTML coverage reports:
