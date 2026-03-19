@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  lint:
+  linux-x86_64-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +47,7 @@ jobs:
       - name: Check documentation
         run: cargo doc --no-deps
 
-  test-macos:
+  macos-aarch64-lint:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
